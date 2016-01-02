@@ -99,6 +99,7 @@ LOCAL_SRC_FILES := \
 	fsck/fsck.c \
 	fsck/main.c \
 	fsck/mount.c \
+	fsck/defrag.c \
 	lib/libf2fs.c \
 	lib/libf2fs_io.c \
 
@@ -117,6 +118,7 @@ LOCAL_SRC_FILES := \
 	fsck/fsck.c \
 	fsck/main.c \
 	fsck/mount.c \
+	fsck/defrag.c \
 	lib/libf2fs.c \
 	lib/libf2fs_io.c \
 
