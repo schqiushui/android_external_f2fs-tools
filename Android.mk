@@ -5,6 +5,7 @@ ifneq (,$(filter linux darwin,$(HOST_OS)))
 
 # The versions depend on $(LOCAL_PATH)/VERSION
 common_CFLAGS := -DF2FS_MAJOR_VERSION=1 -DF2FS_MINOR_VERSION=9 -DF2FS_TOOLS_VERSION=\"1.9.0\" -DF2FS_TOOLS_DATE=\"2017-10-30\"
+common_CFLAGS += -DWITH_ANDROID
 
 # fsck.f2fs forces a full file system scan whenever /proc/version changes
 # Perform this check only when it's a release build
@@ -13,7 +14,11 @@ ifneq ($(TARGET_BUILD_VARIANT), user)
 endif
 
 # external/e2fsprogs/lib is needed for uuid/uuid.h
-common_C_INCLUDES := $(LOCAL_PATH)/include external/e2fsprogs/lib/ $(LOCAL_PATH)/mkfs
+common_C_INCLUDES := \
+	$(LOCAL_PATH)/include \
+	$(LOCAL_PATH)/mkfs \
+	external/e2fsprogs/lib \
+	system/core/libsparse/include
 
 #----------------------------------------------------------
 libf2fs_src_files := lib/libf2fs.c lib/libf2fs_io.c
@@ -26,6 +31,15 @@ LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_CLANG := false
 LOCAL_SHARED_LIBRARIES := libext2_uuid libsparse libz
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := libf2fs_host
+LOCAL_SRC_FILES := $(libf2fs_src_files)
+LOCAL_C_INCLUDES := $(common_C_INCLUDES)
+LOCAL_CFLAGS := $(common_CFLAGS) -DANDROID_HOST
+LOCAL_CLANG := false
+LOCAL_STATIC_LIBRARIES := libext2_uuid-host libsparse_host
+include $(BUILD_HOST_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libf2fs_static
@@ -47,9 +61,18 @@ LOCAL_SRC_FILES := $(mkfs_f2fs_src_files)
 LOCAL_C_INCLUDES := $(common_C_INCLUDES)
 LOCAL_CFLAGS := $(common_CFLAGS)
 LOCAL_CLANG := false
-LOCAL_SHARED_LIBRARIES := libf2fs libext2_uuid
+LOCAL_SHARED_LIBRARIES := libf2fs libext2_uuid libsparse
 LOCAL_MODULE_TAGS := optional
 include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := make_f2fs
+LOCAL_SRC_FILES := $(mkfs_f2fs_src_files)
+LOCAL_C_INCLUDES := $(common_C_INCLUDES)
+LOCAL_CFLAGS := $(common_CFLAGS) -DANDROID_HOST
+LOCAL_CLANG := false
+LOCAL_STATIC_LIBRARIES := libf2fs_host libext2_uuid-host libsparse_host libz
+include $(BUILD_HOST_EXECUTABLE)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libf2fs_mkfs_static
