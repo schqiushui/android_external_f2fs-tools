@@ -322,14 +322,14 @@ static void dump_inode_blk(struct f2fs_sb_info *sbi, u32 nid,
 		DBG(3, "ino[0x%x] has inline data!\n", nid);
 		/* recover from inline data */
 		dev_write_dump(((unsigned char *)node_blk) + INLINE_DATA_OFFSET,
-							0, MAX_INLINE_DATA);
+						0, MAX_INLINE_DATA(node_blk));
 		return;
 	}
 
 	/* check data blocks in inode */
 	for (i = 0; i < ADDRS_PER_INODE(&node_blk->i); i++, ofs++)
-		dump_data_blk(sbi, ofs * F2FS_BLKSIZE,
-				le32_to_cpu(node_blk->i.i_addr[i]));
+		dump_data_blk(sbi, ofs * F2FS_BLKSIZE, le32_to_cpu(
+			node_blk->i.i_addr[get_extra_isize(node_blk) + i]));
 
 	/* check node blocks in inode */
 	for (i = 0; i < 5; i++) {
@@ -356,7 +356,7 @@ static void dump_file(struct f2fs_sb_info *sbi, struct node_info *ni,
 	unsigned char name[F2FS_NAME_LEN + 1] = {0};
 	char path[1024] = {0};
 	char ans[255] = {0};
-	int is_encrypt = file_is_encrypt(inode);
+	int enc_name = file_enc_name(inode);
 	int ret;
 
 	if (!S_ISREG(imode) || namelen == 0 || namelen > F2FS_NAME_LEN) {
@@ -377,7 +377,7 @@ dump:
 
 		/* make a file */
 		namelen = convert_encrypted_name(inode->i_name, namelen,
-							name, is_encrypt);
+							name, enc_name);
 		name[namelen] = 0;
 		sprintf(path, "./lost_found/%s", name);
 

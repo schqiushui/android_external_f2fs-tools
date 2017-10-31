@@ -29,6 +29,10 @@
 
 #include <f2fs_fs.h>
 
+#ifndef _WIN32 /* O_BINARY is windows-specific flag */
+#define O_BINARY 0
+#endif
+
 #ifndef __ANDROID__
 /* SCSI command for standard inquiry*/
 #define MODELINQUIRY	0x12,0x00,0x00,0x00,0x4A,0x00
@@ -474,8 +478,8 @@ f2fs_hash_t f2fs_dentry_hash(const unsigned char *name, int len)
 unsigned int addrs_per_inode(struct f2fs_inode *i)
 {
 	if (i->i_inline & F2FS_INLINE_XATTR)
-		return DEF_ADDRS_PER_INODE - F2FS_INLINE_XATTR_ADDRS;
-	return DEF_ADDRS_PER_INODE;
+		return CUR_ADDRS_PER_INODE(i) - F2FS_INLINE_XATTR_ADDRS;
+	return CUR_ADDRS_PER_INODE(i);
 }
 
 /*
@@ -508,6 +512,28 @@ int f2fs_crc_valid(u_int32_t blk_crc, void *buf, int len)
 		return -1;
 	}
 	return 0;
+}
+
+__u32 f2fs_inode_chksum(struct f2fs_node *node)
+{
+	struct f2fs_inode *ri = &node->i;
+	__le32 ino = node->footer.ino;
+	__le32 gen = ri->i_generation;
+	__u32 chksum, chksum_seed;
+	__u32 dummy_cs = 0;
+	unsigned int offset = offsetof(struct f2fs_inode, i_inode_checksum);
+	unsigned int cs_size = sizeof(dummy_cs);
+
+	chksum = f2fs_cal_crc32(c.chksum_seed, (__u8 *)&ino,
+							sizeof(ino));
+	chksum_seed = f2fs_cal_crc32(chksum, (__u8 *)&gen, sizeof(gen));
+
+	chksum = f2fs_cal_crc32(chksum_seed, (__u8 *)ri, offset);
+	chksum = f2fs_cal_crc32(chksum, (__u8 *)&dummy_cs, cs_size);
+	offset += cs_size;
+	chksum = f2fs_cal_crc32(chksum, (__u8 *)ri + offset,
+						F2FS_BLKSIZE - offset);
+	return chksum;
 }
 
 /*
@@ -589,9 +615,10 @@ void f2fs_init_configuration(void)
 	c.segs_per_sec = 1;
 	c.secs_per_zone = 1;
 	c.segs_per_zone = 1;
-	c.heap = 1;
+	c.heap = 0;
 	c.vol_label = "";
 	c.trim = 1;
+	c.trimmed = 0;
 	c.ro = 0;
 	c.kd = -1;
 	c.bytes_reserved = 0;
@@ -721,7 +748,11 @@ int get_device_info(int i)
 #endif
 	struct device_info *dev = c.devices + i;
 
-	fd = open((char *)dev->path, O_RDWR);
+	if (c.sparse_mode) {
+		fd = open((char *)dev->path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+	} else {
+		fd = open((char *)dev->path, O_RDWR);
+	}
 	if (fd < 0) {
 		MSG(0, "\tError: Failed to open the device!\n");
 		return -1;
@@ -742,7 +773,9 @@ int get_device_info(int i)
 		return -1;
 	}
 
-	if (S_ISREG(stat_buf.st_mode)) {
+	if (c.sparse_mode) {
+		dev->total_sectors = c.device_size / dev->sector_size;
+	} else if (S_ISREG(stat_buf.st_mode)) {
 		if (c.bytes_reserved >= stat_buf.st_size) {
 			MSG(0, "\n\Error: reserved bytes (%u) is bigger than the device size (%u bytes)\n",
 			    (unsigned int) c.bytes_reserved,
@@ -798,10 +831,12 @@ int get_device_info(int i)
 			dev->total_sectors -= reserved_sectors;
 		}
 
-		if (ioctl(fd, HDIO_GETGEO, &geom) < 0)
-			c.start_sector = 0;
-		else
-			c.start_sector = geom.start;
+		if (i == 0) {
+			if (ioctl(fd, HDIO_GETGEO, &geom) < 0)
+				c.start_sector = 0;
+			else
+				c.start_sector = geom.start;
+		}
 #endif
 
 #if !defined(__ANDROID__) && !defined(ANDROID_HOST)

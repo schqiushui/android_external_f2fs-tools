@@ -131,6 +131,7 @@ struct f2fs_dentry_ptr {
 	struct f2fs_dir_entry *dentry;
 	__u8 (*filename)[F2FS_SLOT_LEN];
 	int max;
+	int nr_bitmap;
 };
 
 struct dentry {
@@ -234,7 +235,9 @@ static inline struct sit_info *SIT_I(struct f2fs_sb_info *sbi)
 
 static inline void *inline_data_addr(struct f2fs_node *node_blk)
 {
-	return (void *)&(node_blk->i.i_addr[1]);
+	int ofs = get_extra_isize(node_blk) + DEF_INLINE_RESERVED_SIZE;
+
+	return (void *)&(node_blk->i.i_addr[ofs]);
 }
 
 static inline unsigned int ofs_of_node(struct f2fs_node *node_blk)
@@ -275,7 +278,7 @@ static inline void *__bitmap_ptr(struct f2fs_sb_info *sbi, int flag)
 static inline bool is_set_ckpt_flags(struct f2fs_checkpoint *cp, unsigned int f)
 {
 	unsigned int ckpt_flags = le32_to_cpu(cp->ckpt_flags);
-	return ckpt_flags & f;
+	return ckpt_flags & f ? 1 : 0;
 }
 
 static inline block_t __start_cp_addr(struct f2fs_sb_info *sbi)
@@ -446,9 +449,9 @@ static unsigned char f2fs_type_by_mode[S_IFMT >> S_SHIFT] = {
 	[S_IFLNK >> S_SHIFT]    = F2FS_FT_SYMLINK,
 };
 
-static inline void set_de_type(struct f2fs_dir_entry *de, umode_t mode)
+static inline int map_de_type(umode_t mode)
 {
-	de->file_type = f2fs_type_by_mode[(mode & S_IFMT) >> S_SHIFT];
+       return f2fs_type_by_mode[(mode & S_IFMT) >> S_SHIFT];
 }
 
 static inline void *inline_xattr_addr(struct f2fs_inode *inode)
@@ -466,5 +469,42 @@ static inline int inline_xattr_size(struct f2fs_inode *inode)
 extern int lookup_nat_in_journal(struct f2fs_sb_info *sbi, u32 nid, struct f2fs_nat_entry *ne);
 #define IS_SUM_NODE_SEG(footer)		(footer.entry_type == SUM_TYPE_NODE)
 #define IS_SUM_DATA_SEG(footer)		(footer.entry_type == SUM_TYPE_DATA)
+
+static inline unsigned int dir_buckets(unsigned int level, int dir_level)
+{
+	if (level + dir_level < MAX_DIR_HASH_DEPTH / 2)
+		return 1 << (level + dir_level);
+	else
+		return MAX_DIR_BUCKETS;
+}
+
+static inline unsigned int bucket_blocks(unsigned int level)
+{
+	if (level < MAX_DIR_HASH_DEPTH / 2)
+		return 2;
+	else
+		return 4;
+}
+
+static inline unsigned long dir_block_index(unsigned int level,
+				int dir_level, unsigned int idx)
+{
+	unsigned long i;
+	unsigned long bidx = 0;
+
+	for (i = 0; i < level; i++)
+		bidx += dir_buckets(i, dir_level) * bucket_blocks(i);
+	bidx += idx * bucket_blocks(level);
+	return bidx;
+}
+
+static inline int is_dot_dotdot(const unsigned char *name, const int len)
+{
+	if (len == 1 && name[0] == '.')
+		return 1;
+	if (len == 2 && name[0] == '.' && name[1] == '.')
+		return 1;
+	return 0;
+}
 
 #endif /* _F2FS_H_ */
