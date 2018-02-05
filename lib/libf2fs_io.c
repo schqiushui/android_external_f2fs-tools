@@ -278,7 +278,7 @@ int f2fs_fsync_device(void)
 
 int f2fs_init_sparse_file(void)
 {
-#ifdef WITH_ANDROID
+#if 0 // Broken in Nougat
 	if (c.func == MKFS) {
 		f2fs_sparse_file = sparse_file_new(F2FS_BLKSIZE, c.device_size);
 	} else {
