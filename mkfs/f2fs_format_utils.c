@@ -6,22 +6,30 @@
  *
  * Dual licensed under the GPL or LGPL version 2 licenses.
  */
+#ifndef _LARGEFILE_SOURCE
 #define _LARGEFILE_SOURCE
+#endif
+#ifndef _LARGEFILE64_SOURCE
 #define _LARGEFILE64_SOURCE
+#endif
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 
+#include <f2fs_fs.h>
+
 #include <stdio.h>
 #include <unistd.h>
+#ifndef ANDROID_WINDOWS_HOST
 #include <sys/ioctl.h>
+#endif
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "f2fs_fs.h"
-
-#if defined(__linux__)
+#ifdef HAVE_LINUX_FS_H
 #include <linux/fs.h>
+#endif
+#ifdef HAVE_LINUX_FALLOC_H
 #include <linux/falloc.h>
 #endif
 
@@ -34,6 +42,7 @@
 
 static int trim_device(int i)
 {
+#ifndef ANDROID_WINDOWS_HOST
 	unsigned long long range[2];
 	struct stat stat_buf;
 	struct device_info *dev = c.devices + i;
@@ -48,8 +57,8 @@ static int trim_device(int i)
 	range[0] = 0;
 	range[1] = bytes;
 
-#if defined(__linux__) && defined(BLKDISCARD)
-	MSG(0, "Info: Discarding device: %lu sectors\n", dev->total_sectors);
+#if defined(WITH_BLKDISCARD) && defined(BLKDISCARD)
+	MSG(0, "Info: [%s] Discarding device\n", dev->path);
 	if (S_ISREG(stat_buf.st_mode)) {
 #if defined(HAVE_FALLOCATE) && defined(FALLOC_FL_PUNCH_HOLE)
 		if (fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
@@ -59,16 +68,14 @@ static int trim_device(int i)
 #endif
 		return 0;
 	} else if (S_ISBLK(stat_buf.st_mode)) {
-#if !defined(__ANDROID__) && !defined(ANDROID_HOST)
 		if (dev->zoned_model != F2FS_ZONED_NONE)
 			return f2fs_reset_zones(i);
-#endif
 #ifdef BLKSECDISCARD
 		if (ioctl(fd, BLKSECDISCARD, &range) < 0) {
 			MSG(0, "Info: This device doesn't support BLKSECDISCARD\n");
 		} else {
 			MSG(0, "Info: Secure Discarded %lu MB\n",
-						stat_buf.st_size >> 20);
+					(unsigned long)stat_buf.st_size >> 20);
 			return 0;
 		}
 #endif
@@ -79,6 +86,8 @@ static int trim_device(int i)
 		}
 	} else
 		return -1;
+#endif
+
 #endif
 	return 0;
 }
