@@ -17,6 +17,7 @@
 #define HAVE_SYS_XATTR_H 1
 #define HAVE_UNISTD_H 1
 
+#define HAVE_ATTR_XATTR_H 1
 #define HAVE_ADD_KEY 1
 #define HAVE_FALLOCATE 1
 #define HAVE_FSETXATTR 1
