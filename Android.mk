@@ -4,8 +4,10 @@ LOCAL_PATH:= $(call my-dir)
 ifneq (,$(filter linux darwin,$(HOST_OS)))
 
 # The versions depend on $(LOCAL_PATH)/VERSION
-common_CFLAGS := -DF2FS_MAJOR_VERSION=1 -DF2FS_MINOR_VERSION=9 -DF2FS_TOOLS_VERSION=\"1.9.0\" -DF2FS_TOOLS_DATE=\"2017-10-30\"
-common_CFLAGS += -DWITH_ANDROID
+common_CFLAGS := -DF2FS_MAJOR_VERSION=1 \
+		 -DF2FS_MINOR_VERSION=10 \
+		 -DF2FS_TOOLS_VERSION=\"1.10.0\" \
+		 -DF2FS_TOOLS_DATE=\"2018.01.30\"
 
 # fsck.f2fs forces a full file system scan whenever /proc/version changes
 # Perform this check only when it's a release build
@@ -87,7 +89,6 @@ include $(BUILD_STATIC_LIBRARY)
 fsck_f2fs_src_files := \
 	fsck/defrag.c \
 	fsck/dir.c \
-	fsck/dump.c \
 	fsck/fsck.c \
 	fsck/main.c \
 	fsck/mount.c \
@@ -95,7 +96,12 @@ fsck_f2fs_src_files := \
 	fsck/resize.c \
 	fsck/segment.c \
 	fsck/sload.c \
-	fsck/xattr.c
+	fsck/xattr.c \
+	fsck/dict.c \
+	fsck/mkquota.c \
+	fsck/quotaio.c \
+	fsck/quotaio_tree.c \
+	fsck/quotaio_v2.c
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := fsck.f2fs
